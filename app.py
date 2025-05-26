@@ -1,61 +1,96 @@
-from flask import Flask, request, jsonify, send_from_directory
+import streamlit as st
 import pandas as pd
 import joblib
 import json
 
-app = Flask(__name__)
-
+# Load model, scaler, and label encoder
 model = joblib.load('income_model.joblib')
 scaler = joblib.load('scaler.joblib')
 le_income = joblib.load('label_encoder.joblib')
 with open('columns.json', 'r') as f:
-  model_columns = json.load(f)
+    model_columns = json.load(f)
 
-@app.route('/predict', methods=['POST'])
-def predict():
-  try:
-      # Get input data from request
-      data = request.get_json()
-      
-      # Create DataFrame from input
-      input_data = pd.DataFrame([data])
-      
-      # Identify categorical and numerical columns
-      categorical_cols = ['workclass', 'education', 'marital_status', 'occupation', 
-                        'relationship', 'race', 'sex', 'native_country']
-      numerical_cols = ['age', 'fnlwgt', 'education_num', 'capital_gain', 
-                        'capital_loss', 'hours_per_week']
-      
-      # Convert numerical columns to float
-      for col in numerical_cols:
-          input_data[col] = input_data[col].astype(float)
-      
-      # One-hot encode categorical variables
-      input_encoded = pd.get_dummies(input_data, columns=categorical_cols)
-      
-      # Align columns with training data
-      for col in model_columns:
-          if col not in input_encoded.columns:
-              input_encoded[col] = 0
-      input_encoded = input_encoded[model_columns]
-      
-      # Scale the features
-      input_scaled = scaler.transform(input_encoded)
-      
-      # Make prediction
-      prediction = model.predict(input_scaled)[0]
-      
-      return jsonify({'prediction': int(prediction)})
-  
-  except Exception as e:
-      return jsonify({'error': str(e)}), 400
-  
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def catch_all(path):
-    if path.startswith('static/'):
-        return send_from_directory('static', path[7:])
-    return send_from_directory('static', 'index.html')
+st.title("Income Prediction App")
 
-if __name__ == '__main__':
-  app.run()
+# Define the input form
+with st.form("input_form"):
+    age = st.number_input("Age", min_value=0)
+    workclass = st.selectbox("Workclass", [
+        'Private', 'Self-emp-not-inc', 'Self-emp-inc', 'Federal-gov', 'Local-gov',
+        'State-gov', 'Without-pay', 'Never-worked'
+    ])
+    fnlwgt = st.number_input("Final Weight (fnlwgt)", min_value=0)
+    education = st.selectbox("Education", [
+        'Bachelors', 'Some-college', '11th', 'HS-grad', 'Prof-school', 'Assoc-acdm',
+        'Assoc-voc', '9th', '7th-8th', '12th', 'Masters', '1st-4th',
+        '10th', 'Doctorate', '5th-6th', 'Preschool'
+    ])
+    education_num = st.number_input("Education Num", min_value=0)
+    marital_status = st.selectbox("Marital Status", [
+        'Married-civ-spouse', 'Divorced', 'Never-married', 'Separated', 'Widowed', 'Married-spouse-absent'
+    ])
+    occupation = st.selectbox("Occupation", [
+        'Tech-support', 'Craft-repair', 'Other-service', 'Sales', 'Exec-managerial',
+        'Prof-specialty', 'Handlers-cleaners', 'Machine-op-inspct', 'Adm-clerical',
+        'Farming-fishing', 'Transport-moving', 'Priv-house-serv', 'Protective-serv',
+        'Armed-Forces'
+    ])
+    relationship = st.selectbox("Relationship", [
+        'Wife', 'Own-child', 'Husband', 'Not-in-family', 'Other-relative', 'Unmarried'
+    ])
+    race = st.selectbox("Race", ['White', 'Asian-Pac-Islander', 'Amer-Indian-Eskimo', 'Other', 'Black'])
+    sex = st.selectbox("Sex", ['Male', 'Female'])
+    capital_gain = st.number_input("Capital Gain", min_value=0)
+    capital_loss = st.number_input("Capital Loss", min_value=0)
+    hours_per_week = st.number_input("Hours per Week", min_value=0)
+    native_country = st.selectbox("Native Country", [
+        'United-States', 'Cambodia', 'England', 'Puerto-Rico', 'Canada', 'Germany',
+        'Outlying-US(Guam-USVI-etc)', 'India', 'Japan', 'Greece', 'South', 'China',
+        'Cuba', 'Iran', 'Honduras', 'Philippines', 'Italy', 'Poland', 'Jamaica',
+        'Vietnam', 'Mexico', 'Portugal', 'Ireland', 'France', 'Dominican-Republic',
+        'Laos', 'Ecuador', 'Taiwan', 'Haiti', 'Columbia', 'Hungary', 'Guatemala',
+        'Nicaragua', 'Scotland', 'Thailand', 'Yugoslavia', 'El-Salvador', 'Trinadad&Tobago',
+        'Peru', 'Hong', 'Holand-Netherlands'
+    ])
+    
+    submitted = st.form_submit_button("Predict")
+
+    if submitted:
+        # Prepare input data
+        data = {
+            "age": age,
+            "workclass": workclass,
+            "fnlwgt": fnlwgt,
+            "education": education,
+            "education_num": education_num,
+            "marital_status": marital_status,
+            "occupation": occupation,
+            "relationship": relationship,
+            "race": race,
+            "sex": sex,
+            "capital_gain": capital_gain,
+            "capital_loss": capital_loss,
+            "hours_per_week": hours_per_week,
+            "native_country": native_country
+        }
+
+        input_df = pd.DataFrame([data])
+        categorical_cols = ['workclass', 'education', 'marital_status', 'occupation',
+                            'relationship', 'race', 'sex', 'native_country']
+        numerical_cols = ['age', 'fnlwgt', 'education_num', 'capital_gain',
+                          'capital_loss', 'hours_per_week']
+
+        for col in numerical_cols:
+            input_df[col] = input_df[col].astype(float)
+
+        input_encoded = pd.get_dummies(input_df, columns=categorical_cols)
+
+        for col in model_columns:
+            if col not in input_encoded.columns:
+                input_encoded[col] = 0
+        input_encoded = input_encoded[model_columns]
+
+        input_scaled = scaler.transform(input_encoded)
+        prediction = model.predict(input_scaled)[0]
+
+        st.success(f"Predicted Income: {'>=50k' if int(prediction) == 0 else '<50k' }")
