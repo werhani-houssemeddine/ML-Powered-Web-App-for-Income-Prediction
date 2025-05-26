@@ -1,0 +1,4 @@
+venv/*
+
+adult-ml.ipynb
+__pycache__/*
